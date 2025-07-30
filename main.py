@@ -50,13 +50,6 @@ def ensure_resized_image(board_type="Small"):
         return np.asarray(img)
     else:
         # Generate a simple Catan-style hex board as an image
-        def hex_corner(center, size, i):
-            angle_deg = 60 * i - 30
-            angle_rad = np.pi / 180 * angle_deg
-            return (
-                center[0] + size * np.cos(angle_rad),
-                center[1] + size * np.sin(angle_rad),
-            )
 
         # Use board_type to determine layout and tiles
         if board_type == "Large":
@@ -160,6 +153,15 @@ def ensure_resized_image(board_type="Small"):
         size = 40
         origin = (300, 250)  # Adjusted for large board centering
         colors = ["#967353", "#228B22", "#C0C0C0", "#fff44f", "#e0cda9", "#e2e2e2"]
+        # Define contrasting text colors for each resource
+        resource_text_colors = {
+            "brick": "white",
+            "wood": "white",
+            "stone": "black",
+            "sheep": "black",
+            "wheat": "black",
+            "desert": "#967353",  # brownish for desert
+        }
         for idx, (q, r) in enumerate(hex_centers):
             center = hex_to_pixel(q, r, size, origin)
             hexagon = mpatches.RegularPolygon(
@@ -179,17 +181,17 @@ def ensure_resized_image(board_type="Small"):
                 center[0],
                 center[1] - size * 0.25,
                 str(idx + 1),
-                color="red",
+                color="#4C8ED0",
                 ha="center",
                 va="center",
-                fontsize=8,
+                fontsize=6,
                 fontweight="bold",
             )
             ax.text(
                 center[0],
                 center[1] + size * 0.15,
                 hex_type,
-                color=("#C2B280" if tile_types[idx] == 5 else "black"),
+                color=resource_text_colors[hex_type],
                 ha="center",
                 va="center",
                 fontsize=8,
@@ -233,14 +235,6 @@ def update_display(label):
     fig.canvas.draw_idle()
 
 
-def on_generate(event):
-    update_display(radio.value_selected)
-
-
-def regenerate_board(event=None):
-    update_display(radio.value_selected)
-
-
 # Ask user for board size at startup
 import sys
 
@@ -282,19 +276,117 @@ def save_board_image(output_path="catan_board_output", board_type="Small"):
     # Generate the board image
     img = get_map_image(board_type)
 
-    # Save as PNG
-    png_path = f"{output_path}.png"
-    plt.imsave(png_path, img)
-    print(f"Board image saved as PNG to {png_path}")
-
-    # Save as SVG
+    # Save as SVG first
     svg_path = f"{output_path}.svg"
     fig, ax = plt.subplots(figsize=(6, 6))
     ax.imshow(img)
     ax.axis("off")
-    fig.savefig(svg_path, format="svg", bbox_inches="tight")
+    # Increase DPI for better clarity
+    fig.savefig(svg_path, format="svg", bbox_inches="tight", dpi=300)
     plt.close(fig)
-    print(f"Board image saved as SVG to {svg_path}")
+
+    # Convert SVG to PNG using cairosvg
+    try:
+        import cairosvg
+        import time
+        import os
+
+        png_path = f"{output_path}.png"
+        # Determine SVG size for scaling
+        from xml.etree import ElementTree as ET
+
+        tree = ET.parse(svg_path)
+        root = tree.getroot()
+        width = root.get("width")
+        height = root.get("height")
+
+        # Helper to parse SVG length with units
+        def parse_svg_length(val):
+            if val is None:
+                return None
+            import re
+
+            m = re.match(r"([0-9.]+)([a-z%]*)", val.strip())
+            if not m:
+                return None
+            num, unit = m.groups()
+            num = float(num)
+            if unit in ("", "px"):  # pixels
+                return num
+            elif unit == "pt":  # points (1pt = 1.3333px)
+                return num * 96 / 72
+            elif unit == "in":  # inches
+                return num * 96
+            elif unit == "cm":
+                return num * 96 / 2.54
+            elif unit == "mm":
+                return num * 96 / 25.4
+            else:
+                return num  # fallback, treat as px
+
+        width = parse_svg_length(width) if width else None
+        height = parse_svg_length(height) if height else None
+        # Fallback if width/height are not set as attributes
+        if width is None or height is None:
+            # Try viewBox
+            viewbox = root.get("viewBox")
+            if viewbox:
+                _, _, w, h = viewbox.split()
+                width = float(w)
+                height = float(h)
+        width = int(round(width)) if width else 600
+        height = int(round(height)) if height else 600
+        # Double the size for PNG
+        out_w, out_h = width * 2, height * 2
+        cairosvg.svg2png(
+            url=svg_path, write_to=png_path, output_width=out_w, output_height=out_h
+        )
+        print(f"Board image saved as PNG to {png_path} (double size: {out_w}x{out_h})")
+        # Ensure file is written and nonzero size
+        for _ in range(10):
+            if os.path.exists(png_path) and os.path.getsize(png_path) > 0:
+                break
+            time.sleep(0.1)
+        else:
+            print(f"Warning: PNG file {png_path} not found or empty after save.")
+        # Crop to 2 inch margin around the actual board (not just canvas)
+        from PIL import Image
+        import numpy as np
+
+        img = Image.open(png_path).convert("RGB")
+        arr = np.array(img)
+        # Find non-white (background) pixels
+        mask = np.any(arr < 250, axis=2)  # True for any non-white pixel
+        coords = np.argwhere(mask)
+        if coords.size > 0:
+            y0, x0 = coords.min(axis=0)
+            y1, x1 = coords.max(axis=0)
+            # Add 1-inch margin (96 dpi)
+            dpi = img.info.get("dpi", (96, 96))[0]
+            margin = int(1 * dpi)
+            x0 = max(x0 - margin, 0)
+            y0 = max(y0 - margin, 0)
+            x1 = min(x1 + margin, img.width - 1)
+            y1 = min(y1 + margin, img.height - 1)
+            img_cropped = img.crop((x0, y0, x1, y1))
+            img_cropped.save(png_path)
+            print(
+                f"Cropped PNG to board + 1-inch margin: {png_path} ({img_cropped.width}x{img_cropped.height})"
+            )
+        else:
+            print("Warning: Could not find board content for cropping, skipping crop.")
+        # Open the PNG image using the default viewer (macOS)
+        import subprocess
+        import webbrowser
+
+        try:
+            proc = subprocess.Popen(["open", png_path])
+            print(f"Launched 'open' for PNG: {png_path} (PID: {proc.pid})")
+        except Exception as e:
+            print(f"Exception during 'open': {e}. Trying webbrowser fallback...")
+            webbrowser.open(f"file://{png_path}")
+    except ImportError:
+        print("cairosvg is not installed. PNG will not be generated from SVG.")
 
 
 # Dynamically save the board image based on the command-line argument

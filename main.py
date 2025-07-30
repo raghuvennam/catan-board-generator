@@ -10,7 +10,7 @@ import numpy as np
 
 
 def selectionLarge():
-    # 6 of each resource, 2 deserts
+    # 6 of each resource, 2 deserts (for 30 hexes)
     tiles = ["brick"] * 6 + ["wood"] * 6 + ["stone"] * 6 + ["sheep"] * 6 + ["wheat"] * 6
     tiles = tiles[:28]  # In case of any overfill (shouldn't happen)
     tiles += ["desert"] * 2
@@ -19,8 +19,9 @@ def selectionLarge():
 
 
 def selectionSmall():
-    # 4 of each resource, 1 desert
-    tiles = ["brick"] * 4 + ["wood"] * 4 + ["stone"] * 4 + ["sheep"] * 4 + ["wheat"] * 4
+    # 3, 4, 5, 4, 3 = 19 hexes (classic small Catan board)
+    # Standard: 3 of each resource, 1 desert (for 19 hexes)
+    tiles = ["brick"] * 3 + ["wood"] * 4 + ["stone"] * 3 + ["sheep"] * 4 + ["wheat"] * 4
     tiles = tiles[:18]  # In case of any overfill (shouldn't happen)
     tiles += ["desert"]
     random.shuffle(tiles)
@@ -54,13 +55,32 @@ def ensure_resized_image(board_type="Small"):
         # Use board_type to determine layout and tiles
         if board_type == "Large":
             tiles = selectionLarge()
-            # Generate a radius-3 hexagon (hexes where abs(q) <= 3, abs(r) <= 3, abs(-q-r) <= 3)
+            # Official Catan 5-6 player (30 hex) layout: 3, 4, 5, 6, 5, 4, 3 per row, horizontally centered
             hex_centers = []
-            for q in range(-3, 4):
-                for r in range(-3, 4):
-                    s = -q - r
-                    if abs(s) <= 3 and abs(q) <= 3 and abs(r) <= 3:
-                        hex_centers.append((q, r))
+            row_lengths = [3, 4, 5, 6, 5, 4, 3]
+            q_vals = list(range(-3, 4))  # q from -3 to 3
+            for q, row_length in zip(q_vals, row_lengths):
+                # Custom vertical shifting for large board:
+                # q = -3: shift down by 1 (was +2, now +3)
+                # q = -2: shift down by 2
+                # q = -1: shift down by 2
+                # q = 0: shift down by 1
+                # others: no shift
+                if q == -3:
+                    r_start = -((row_length - 1) // 2) + 3  # down by 1 from default
+                elif q == -2:
+                    r_start = -((row_length - 1) // 2) + 2
+                elif q == -1:
+                    r_start = -((row_length - 1) // 2) + 2
+                elif q == 0:
+                    r_start = -((row_length - 1) // 2) + 1
+                elif q == 1:
+                    r_start = -((row_length - 1) // 2) + 1
+                else:
+                    r_start = -((row_length - 1) // 2)
+                for i in range(row_length):
+                    r = r_start + i
+                    hex_centers.append((q, r))
             random.shuffle(hex_centers)
             random.shuffle(tiles)
             paired = list(zip(hex_centers, tiles))
@@ -69,12 +89,24 @@ def ensure_resized_image(board_type="Small"):
             tiles = list(tiles)
         else:
             tiles = selectionSmall()
-            # Small board: radius 2
+            # Small board: 5 rows: 3, 4, 5, 4, 3 per row, horizontally centered
             hex_centers = []
-            for q in range(-2, 3):
-                r1 = max(-2, -q - 2)
-                r2 = min(2, -q + 2)
-                for r in range(r1, r2 + 1):
+            row_lengths = [3, 4, 5, 4, 3]
+            q_vals = list(range(-2, 3))  # q from -2 to 2
+            for q_idx, (q, row_length) in enumerate(zip(q_vals, row_lengths)):
+                # Move the first vertical layer (q = -2) down by 2
+                # Move the second vertical layer (q = -1) down by 1
+                # Move the middle layer (q = 0) down by 1
+                if q == -2:
+                    r_start = -((row_length - 1) // 2) + 2
+                elif q == -1:
+                    r_start = -((row_length - 1) // 2) + 1
+                elif q == 0:
+                    r_start = -((row_length - 1) // 2) + 1
+                else:
+                    r_start = -((row_length - 1) // 2)
+                for i in range(row_length):
+                    r = r_start + i
                     hex_centers.append((q, r))
             random.shuffle(hex_centers)
             random.shuffle(tiles)

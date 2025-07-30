@@ -129,16 +129,19 @@ def ensure_resized_image(board_type="Small"):
                 for i in range(row_length):
                     r = r_start + i
                     hex_centers.append((q, r))
+
             # Build neighbor map for small board
             def get_neighbors(q, r):
                 directions = [(1, 0), (0, 1), (-1, 1), (-1, 0), (0, -1), (1, -1)]
                 return [(q + dq, r + dr) for dq, dr in directions]
+
             pos_to_idx = {pos: i for i, pos in enumerate(hex_centers)}
             neighbors = [[] for _ in range(len(hex_centers))]
             for idx, (q, r) in enumerate(hex_centers):
                 for nq, nr in get_neighbors(q, r):
                     if (nq, nr) in pos_to_idx:
                         neighbors[idx].append(pos_to_idx[(nq, nr)])
+
             # Greedy placement with retries
             def try_place(tiles):
                 assignment = [None] * len(hex_centers)
@@ -152,6 +155,7 @@ def ensure_resized_image(board_type="Small"):
                     else:
                         return None  # Failed
                 return assignment
+
             max_tries = 1000
             for _ in range(max_tries):
                 tiles = selectionSmall()

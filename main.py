@@ -54,52 +54,13 @@ def ensure_resized_image(board_type="Small"):
         # Use board_type to determine layout and tiles
         if board_type == "Large":
             tiles = selectionLarge()
-            # Official Catan 5-6 player (30 hex) layout: only include these (q, r) pairs
-            hex_centers = [
-                (-3, 2),
-                (-3, 3),
-                (-2, 1),
-                (-2, 2),
-                (-2, 3),
-                (-1, 0),
-                (-1, 1),
-                (-1, 2),
-                (-1, 3),
-                (0, -1),
-                (0, 0),
-                (0, 1),
-                (0, 2),
-                (0, 3),
-                (1, -2),
-                (1, -1),
-                (1, 0),
-                (1, 1),
-                (1, 2),
-                (1, 3),
-                (2, -3),
-                (2, -2),
-                (2, -1),
-                (2, 0),
-                (2, 1),
-                (2, 2),
-                (3, -3),
-                (3, -2),
-                (3, -1),
-                (3, 0),
-            ]
-
-            # Correct 60-degree hex grid rotations
-            def rotate_hex(q, r, times):
-                for _ in range(times % 6):
-                    q, r = -r, q + r
-                return (q, r)
-
-            rotation_times = random.randint(0, 5)
-            hex_centers = [rotate_hex(q, r, rotation_times) for (q, r) in hex_centers]
-            # Randomly reflect (flip q and r axes)
-            if random.choice([True, False]):
-                hex_centers = [(r, q) for (q, r) in hex_centers]
-            # Shuffle both hex_centers and tiles before pairing
+            # Generate a radius-3 hexagon (hexes where abs(q) <= 3, abs(r) <= 3, abs(-q-r) <= 3)
+            hex_centers = []
+            for q in range(-3, 4):
+                for r in range(-3, 4):
+                    s = -q - r
+                    if abs(s) <= 3 and abs(q) <= 3 and abs(r) <= 3:
+                        hex_centers.append((q, r))
             random.shuffle(hex_centers)
             random.shuffle(tiles)
             paired = list(zip(hex_centers, tiles))

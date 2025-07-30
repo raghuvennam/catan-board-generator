@@ -59,25 +59,24 @@ def ensure_resized_image(board_type="Small"):
             hex_centers = []
             row_lengths = [3, 4, 5, 6, 5, 4, 3]
             q_vals = list(range(-3, 4))  # q from -3 to 3
+            # Custom vertical shifting for large board:
+            # q = -3: shift down by 1
+            # q = -2: shift down by 2
+            # q = -1: shift down by 2
+            # q = 0: shift down by 1
+            # q = 1: shift down by 1
+            # q = 3: shift down by 1
+            # others: no shift
+            shift_map = {
+                -3: 3,  # down by 1
+                -2: 2,
+                -1: 2,
+                0: 1,
+                1: 1,
+                3: 1,
+            }
             for q, row_length in zip(q_vals, row_lengths):
-                # Custom vertical shifting for large board:
-                # q = -3: shift down by 1 (was +2, now +3)
-                # q = -2: shift down by 2
-                # q = -1: shift down by 2
-                # q = 0: shift down by 1
-                # others: no shift
-                if q == -3:
-                    r_start = -((row_length - 1) // 2) + 3  # down by 1 from default
-                elif q == -2:
-                    r_start = -((row_length - 1) // 2) + 2
-                elif q == -1:
-                    r_start = -((row_length - 1) // 2) + 2
-                elif q == 0:
-                    r_start = -((row_length - 1) // 2) + 1
-                elif q == 1:
-                    r_start = -((row_length - 1) // 2) + 1
-                else:
-                    r_start = -((row_length - 1) // 2)
+                r_start = -((row_length - 1) // 2) + shift_map.get(q, 0)
                 for i in range(row_length):
                     r = r_start + i
                     hex_centers.append((q, r))

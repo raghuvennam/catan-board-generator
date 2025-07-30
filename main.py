@@ -114,18 +114,12 @@ def ensure_resized_image(board_type="Small"):
         else:
             tiles = selectionSmall()
             # Small board: 5 rows: 3, 4, 5, 4, 3 per row, horizontally centered
-            hex_centers = []
             row_lengths = [3, 4, 5, 4, 3]
             q_vals = list(range(-2, 3))  # q from -2 to 2
-            for q_idx, (q, row_length) in enumerate(zip(q_vals, row_lengths)):
-                if q == -2:
-                    r_start = -((row_length - 1) // 2) + 2
-                elif q == -1:
-                    r_start = -((row_length - 1) // 2) + 1
-                elif q == 0:
-                    r_start = -((row_length - 1) // 2) + 1
-                else:
-                    r_start = -((row_length - 1) // 2)
+            shift_map = {-2: 2, -1: 1, 0: 1}
+            hex_centers = []
+            for q, row_length in zip(q_vals, row_lengths):
+                r_start = -((row_length - 1) // 2) + shift_map.get(q, 0)
                 for i in range(row_length):
                     r = r_start + i
                     hex_centers.append((q, r))
@@ -226,9 +220,9 @@ def ensure_resized_image(board_type="Small"):
             hex_type = ["brick", "wood", "stone", "sheep", "wheat", "desert"][
                 tile_types[idx]
             ]
-            # Draw index vertically, centered, and moved 15 px right
+            # Draw index vertically centered and moved 10 px right
             ax.text(
-                center[0] + 15,  # move 15 px right
+                center[0] + 10,  # move 10 px right
                 center[1],  # center vertically
                 str(idx + 1),
                 color=resource_text_colors[hex_type],
@@ -239,9 +233,9 @@ def ensure_resized_image(board_type="Small"):
                 rotation=90,  # vertical
                 rotation_mode="anchor",
             )
-            # Draw resource name vertically
+            # Draw resource name vertically centered, and moved 5 px left
             ax.text(
-                center[0],
+                center[0] - 5,  # move 5 px left
                 center[1],
                 hex_type,
                 color=resource_text_colors[hex_type],

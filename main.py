@@ -55,35 +55,60 @@ def ensure_resized_image(board_type="Small"):
         # Use board_type to determine layout and tiles
         if board_type == "Large":
             tiles = selectionLarge()
+
             # Official Catan 5-6 player (30 hex) layout: 3, 4, 5, 6, 5, 4, 3 per row, horizontally centered
+            # Build neighbor map for large board
+            def get_neighbors(q, r):
+                # Hex axial directions
+                directions = [(1, 0), (0, 1), (-1, 1), (-1, 0), (0, -1), (1, -1)]
+                return [(q + dq, r + dr) for dq, dr in directions]
+
+            # Generate hex positions
             hex_centers = []
             row_lengths = [3, 4, 5, 6, 5, 4, 3]
-            q_vals = list(range(-3, 4))  # q from -3 to 3
-            # Custom vertical shifting for large board:
-            # q = -3: shift down by 1
-            # q = -2: shift down by 2
-            # q = -1: shift down by 2
-            # q = 0: shift down by 1
-            # q = 1: shift down by 1
-            # q = 3: shift down by 1
-            # others: no shift
-            shift_map = {
-                -3: 3,  # down by 1
-                -2: 2,
-                -1: 2,
-                0: 1,
-                1: 1,
-                3: 1,
-            }
+            q_vals = list(range(-3, 4))
+            shift_map = {-3: 3, -2: 2, -1: 2, 0: 1, 1: 1}
             for q, row_length in zip(q_vals, row_lengths):
                 r_start = -((row_length - 1) // 2) + shift_map.get(q, 0)
                 for i in range(row_length):
                     r = r_start + i
                     hex_centers.append((q, r))
-            random.shuffle(hex_centers)
-            random.shuffle(tiles)
-            paired = list(zip(hex_centers, tiles))
-            hex_centers, tiles = zip(*paired)
+            # Build neighbor map
+            pos_to_idx = {pos: i for i, pos in enumerate(hex_centers)}
+            neighbors = [[] for _ in range(len(hex_centers))]
+            for idx, (q, r) in enumerate(hex_centers):
+                for nq, nr in get_neighbors(q, r):
+                    if (nq, nr) in pos_to_idx:
+                        neighbors[idx].append(pos_to_idx[(nq, nr)])
+            # Greedy placement with retries
+            import collections
+
+            def try_place(tiles):
+                assignment = [None] * len(hex_centers)
+                for idx in range(len(hex_centers)):
+                    random.shuffle(tiles)
+                    for t in tiles:
+                        if all(assignment[n] != t for n in neighbors[idx]):
+                            assignment[idx] = t
+                            tiles.remove(t)
+                            break
+                    else:
+                        return None  # Failed
+                return assignment
+
+            # Try multiple times to find a valid placement
+            max_tries = 1000
+            for _ in range(max_tries):
+                tiles = selectionLarge()
+                candidate = try_place(tiles.copy())
+                if candidate:
+                    tiles = candidate
+                    break
+            else:
+                # Fallback to random if not possible
+                tiles = selectionLarge()
+                random.shuffle(hex_centers)
+                random.shuffle(tiles)
             hex_centers = list(hex_centers)
             tiles = list(tiles)
         else:
@@ -93,9 +118,6 @@ def ensure_resized_image(board_type="Small"):
             row_lengths = [3, 4, 5, 4, 3]
             q_vals = list(range(-2, 3))  # q from -2 to 2
             for q_idx, (q, row_length) in enumerate(zip(q_vals, row_lengths)):
-                # Move the first vertical layer (q = -2) down by 2
-                # Move the second vertical layer (q = -1) down by 1
-                # Move the middle layer (q = 0) down by 1
                 if q == -2:
                     r_start = -((row_length - 1) // 2) + 2
                 elif q == -1:
@@ -107,10 +129,41 @@ def ensure_resized_image(board_type="Small"):
                 for i in range(row_length):
                     r = r_start + i
                     hex_centers.append((q, r))
-            random.shuffle(hex_centers)
-            random.shuffle(tiles)
-            paired = list(zip(hex_centers, tiles))
-            hex_centers, tiles = zip(*paired)
+            # Build neighbor map for small board
+            def get_neighbors(q, r):
+                directions = [(1, 0), (0, 1), (-1, 1), (-1, 0), (0, -1), (1, -1)]
+                return [(q + dq, r + dr) for dq, dr in directions]
+            pos_to_idx = {pos: i for i, pos in enumerate(hex_centers)}
+            neighbors = [[] for _ in range(len(hex_centers))]
+            for idx, (q, r) in enumerate(hex_centers):
+                for nq, nr in get_neighbors(q, r):
+                    if (nq, nr) in pos_to_idx:
+                        neighbors[idx].append(pos_to_idx[(nq, nr)])
+            # Greedy placement with retries
+            def try_place(tiles):
+                assignment = [None] * len(hex_centers)
+                for idx in range(len(hex_centers)):
+                    random.shuffle(tiles)
+                    for t in tiles:
+                        if all(assignment[n] != t for n in neighbors[idx]):
+                            assignment[idx] = t
+                            tiles.remove(t)
+                            break
+                    else:
+                        return None  # Failed
+                return assignment
+            max_tries = 1000
+            for _ in range(max_tries):
+                tiles = selectionSmall()
+                candidate = try_place(tiles.copy())
+                if candidate:
+                    tiles = candidate
+                    break
+            else:
+                # Fallback to random if not possible
+                tiles = selectionSmall()
+                random.shuffle(hex_centers)
+                random.shuffle(tiles)
             hex_centers = list(hex_centers)
             tiles = list(tiles)
 
@@ -169,25 +222,31 @@ def ensure_resized_image(board_type="Small"):
             hex_type = ["brick", "wood", "stone", "sheep", "wheat", "desert"][
                 tile_types[idx]
             ]
+            # Draw index vertically, centered, and moved 15 px right
             ax.text(
-                center[0],
-                center[1] - size * 0.25,
+                center[0] + 15,  # move 15 px right
+                center[1],  # center vertically
                 str(idx + 1),
-                color="#4C8ED0",
+                color=resource_text_colors[hex_type],
                 ha="center",
                 va="center",
                 fontsize=6,
                 fontweight="bold",
+                rotation=90,  # vertical
+                rotation_mode="anchor",
             )
+            # Draw resource name vertically
             ax.text(
                 center[0],
-                center[1] + size * 0.15,
+                center[1],
                 hex_type,
                 color=resource_text_colors[hex_type],
                 ha="center",
                 va="center",
                 fontsize=8,
                 fontweight="bold",
+                rotation=90,  # vertical
+                rotation_mode="anchor",
             )
         fig.canvas.draw()
         img = np.array(fig.canvas.renderer.buffer_rgba())[:, :, :3]
@@ -346,6 +405,8 @@ def save_board_image(output_path="catan_board_output", board_type="Small"):
         import numpy as np
 
         img = Image.open(png_path).convert("RGB")
+        # Rotate by 270 degrees before cropping
+        img = img.rotate(270, expand=True)
         arr = np.array(img)
         # Find non-white (background) pixels
         mask = np.any(arr < 250, axis=2)  # True for any non-white pixel
